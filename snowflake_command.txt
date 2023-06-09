@@ -1,0 +1,80 @@
+CREATE DATABASE DEMO;
+CREATE SCHEMA DEMO_SNOWFLAKE;
+
+CREATE OR REPLACE STORAGE integration aws_s3_integration
+type = external_stage
+storage_provider = 'S3'
+enabled = true
+storage_aws_role_arn = 'arn:aws:iam::898915526951:role/Snowflake-s3-policy'
+storage_allowed_locations = ('s3://snowflake-s3-aws/');
+
+SHOW INTEGRATIONS;
+
+DESC integration aws_s3_integration;
+
+GRANT usage on integration aws_s3_integration to role accountadmin;
+
+create or replace file format demo_format
+type = 'CSV'
+field_delimiter = '|'
+skip_header = 1;
+
+create or replace stage demo_aws_stage
+storage_integration = aws_s3_integration
+file_format = demo_format
+url = 's3://snowflake-s3-aws/emp';
+
+list @demo_aws_stage;
+remove @demo_aws_stage/emp.csv
+
+create or replace temporary table demo_emp_info (
+employeeId string,
+employeeName string,
+gender string,
+salary string,
+deptId string,
+doj string);
+
+select * from demo_emp_info limit 5;
+
+COPY INTO demo_emp_info 
+from @demo_aws_stage/emp.csv
+file_format=(format_name=demo_format);
+
+--scenario 1 load all the files from S3 and continue on any loading of files ignoring error file
+COPY INTO demo_emp_info
+from @demo_aws_stage/
+file_format=(format_name=demo_format)
+on_error='Skip_file'; --skip the whole file
+
+--scenario 2 load all the files from S3 and only ignore the row from error file
+COPY INTO demo_emp_info
+from @demo_aws_stage/
+file_format=(format_name=demo_format)
+on_error='Continue'; --only skips the error row from the file
+
+--scnario 3 abort the process as soon as error encounter
+COPY INTO demo_emp_info
+from @demo_aws_stage/
+file_format=(format_name=demo_format)
+on_error='abort';
+
+--scenario 4 if same file needs to be load again forcefully
+COPY INTO demo_emp_info
+from @demo_aws_stage/emp.csv
+file_format=(format_name=demo_format)
+force=true;
+
+-- COPY INTO -- keeps the records into memory for a period of time
+
+select count(*) from demo_emp_info;
+select * from demo_emp_info where employeename='Harry';
+
+List @demo_aws_stage/emp.csv;
+
+--scenario 5 --remove the file from S3 bucket as soon as the records loaded to table
+COPY INTO demo_emp_info
+from @demo_aws_stage/emp.csv
+file_format=(format_name=demo_format)
+force=true purge=true;  --purge is use to delete file from S3 bucket
+

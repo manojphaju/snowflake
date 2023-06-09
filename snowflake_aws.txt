@@ -1,0 +1,68 @@
+Snowflake integration with AWS
+	Create S3 bucket to AWS.
+	Insert file into the bucket
+	Create policy for S3 bucket for List, Read,Write
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:GetObjectVersion",
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion"
+      ],
+      "Resource": "arn:aws:s3:::snowflake-s3-aws/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::snowflake-s3-aws"
+      ]
+    }
+  ]
+}
+	Crete role using above policy, check option for external and give Id name
+	Open snowflake
+	Under workspace, 
+•	Create DATABASE demo
+•	Create SCHEMA schema_name
+	To communicate between snowflake and S3 we need to create INTEGRATION as
+•	Create or replace STORAGE integration integration_name
+type = external_stage
+storage_provider = ‘S3’
+enabled = true
+storage_aws_role_arn = 'arn:aws:iam::898915526951:role/Snowflake-s3-policy'
+storage_allowed_locations = ('s3://snowflake-s3-aws/');
+	Check commands
+•	SHOW INTEGRATIONS;
+•	DESC integration aws_s3_integration;
+	DESC integration aws_s3_integration, gives the details of the connection details.
+	To communicate with AWS through Snowflake, copy details of 
+•	STORAGE_AWS_IAM_USER_ARN
+•	STORAGE_AWS_EXTERNAL_ID
+To policy.
+	For the policy update, open roles > trust relationships > edit policy > give value to AWS and external respectively > update policy
+	Grant to permission to run the integration for accountadmin by
+•	GRANT usage on integration aws_s3_integration to role accountadmin;
+	Create file format
+create or replace file format demo_format
+type = 'CSV'
+field_delimiter = '|'
+skip_header = 1;
+	Create stage
+create or replace stage demo_aws_stage
+storage_integration = aws_s3_integration
+file_format = demo_format
+url = 's3://snowflake-s3-aws/';
+	To list the files of S3 bucket from Snowflake
+•	List @demo_aws_stage;
+	To delete the files of S3 bucket from Snowflake 
+•	remove @demo_aws_stage/ --- deletes all the files 
+•	remove @demo_aws_stage/name_of_file --- deletes only specific files 
+
